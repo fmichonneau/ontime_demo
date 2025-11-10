@@ -1,3 +1,7 @@
+options(renv.config.pak.enabled = TRUE)
+library(renv)
+library(pak)
+
 library(shiny)
 library(DBI)
 library(shinydashboard)
@@ -12,25 +16,53 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Overview", tabName = "overview", icon = icon("dashboard")),
-      menuItem("Flight Delays", tabName = "flight_delays", icon = icon("clock")),
-      menuItem("Route Analysis", tabName = "route_analysis", icon = icon("plane")),
-      menuItem("Airline Comparison", tabName = "airline_comparison", icon = icon("building"))
+      menuItem(
+        "Flight Delays",
+        tabName = "flight_delays",
+        icon = icon("clock")
+      ),
+      menuItem(
+        "Route Analysis",
+        tabName = "route_analysis",
+        icon = icon("plane")
+      ),
+      menuItem(
+        "Airline Comparison",
+        tabName = "airline_comparison",
+        icon = icon("building")
+      )
     ),
 
     # Filter sidebar
     div(
       style = "padding: 15px;",
       h4("Filters"),
-      dateRangeInput("date_range", "Date Range:",
-                    start = Sys.Date() - 30,
-                    end = Sys.Date()),
-      selectInput("airline", "Airline:",
-                 choices = c("All", "AA", "DL", "UA", "WN", "AS", "B6", "NK", "F9"),
-                 selected = "All"),
-      selectInput("weather", "Weather Conditions:",
-                 choices = c("All", "Clear", "Rain", "Snow", "Fog", "Thunderstorm"),
-                 selected = "All"),
+      dateRangeInput(
+        "date_range",
+        "Date Range:",
+        start = Sys.Date() - 30,
+        end = Sys.Date()
+      ),
+      selectInput(
+        "airline",
+        "Airline:",
+        choices = c("All", "AA", "DL", "UA", "WN", "AS", "B6", "NK", "F9"),
+        selected = "All"
+      ),
+      selectInput(
+        "weather",
+        "Weather Conditions:",
+        choices = c("All", "Clear", "Rain", "Snow", "Fog", "Thunderstorm"),
+        selected = "All"
+      ),
       actionButton("apply_filters", "Apply Filters", class = "btn-primary")
+    ),
+
+    div(
+      style = "padding: 15px;",
+      p(
+        "The data included in this dashboard is synthetic and generated for demonstration purposes only."
+      )
     )
   ),
 
@@ -149,12 +181,19 @@ server <- function(input, output, session) {
   # Important: This requires setting up a DSN named "ontime_db" in ODBC settings
   conn <- reactive({
     # Database connection with error handling
-    tryCatch({
-      dbConnect(odbc::odbc(), "ontime_db")
-    }, error = function(e) {
-      showNotification(paste("Database connection error:", e$message), type = "error", duration = NULL)
-      return(NULL)
-    })
+    tryCatch(
+      {
+        dbConnect(odbc::odbc(), "ontime_db")
+      },
+      error = function(e) {
+        showNotification(
+          paste("Database connection error:", e$message),
+          type = "error",
+          duration = NULL
+        )
+        return(NULL)
+      }
+    )
   })
 
   # Close database connection when app exits
@@ -185,8 +224,14 @@ server <- function(input, output, session) {
 
     # Add date range filter
     if (!is.null(input$date_range)) {
-      query <- paste0(query, " AND f.flight_date BETWEEN '", input$date_range[1],
-                     "' AND '", input$date_range[2], "'")
+      query <- paste0(
+        query,
+        " AND f.flight_date BETWEEN '",
+        input$date_range[1],
+        "' AND '",
+        input$date_range[2],
+        "'"
+      )
     }
 
     # Add airline filter
@@ -196,25 +241,39 @@ server <- function(input, output, session) {
 
     # Add weather filter
     if (input$weather != "All") {
-      query <- paste0(query, " AND f.weather_conditions = '", input$weather, "'")
+      query <- paste0(
+        query,
+        " AND f.weather_conditions = '",
+        input$weather,
+        "'"
+      )
     }
 
     # Limit to 10000 records for performance
     query <- paste0(query, " LIMIT 10000")
 
     # Execute query
-    tryCatch({
-      dbGetQuery(conn(), query)
-    }, error = function(e) {
-      showNotification(paste("Query error:", e$message), type = "error", duration = NULL)
-      return(data.frame())
-    })
+    tryCatch(
+      {
+        dbGetQuery(conn(), query)
+      },
+      error = function(e) {
+        showNotification(
+          paste("Query error:", e$message),
+          type = "error",
+          duration = NULL
+        )
+        return(data.frame())
+      }
+    )
   })
 
   # Overview tab outputs
   output$total_flights_box <- renderValueBox({
     data <- flights_data()
-    if (nrow(data) == 0) return(valueBox(0, "Flights", icon = icon("plane"), color = "blue"))
+    if (nrow(data) == 0) {
+      return(valueBox(0, "Flights", icon = icon("plane"), color = "blue"))
+    }
 
     valueBox(
       nrow(data),
@@ -226,7 +285,14 @@ server <- function(input, output, session) {
 
   output$avg_delay_box <- renderValueBox({
     data <- flights_data()
-    if (nrow(data) == 0) return(valueBox("0 min", "Avg Delay", icon = icon("clock"), color = "yellow"))
+    if (nrow(data) == 0) {
+      return(valueBox(
+        "0 min",
+        "Avg Delay",
+        icon = icon("clock"),
+        color = "yellow"
+      ))
+    }
 
     avg_delay <- round(mean(data$arrival_delay, na.rm = TRUE), 1)
     valueBox(
@@ -239,7 +305,9 @@ server <- function(input, output, session) {
 
   output$ontime_percent_box <- renderValueBox({
     data <- flights_data()
-    if (nrow(data) == 0) return(valueBox("0%", "On Time", icon = icon("check"), color = "green"))
+    if (nrow(data) == 0) {
+      return(valueBox("0%", "On Time", icon = icon("check"), color = "green"))
+    }
 
     on_time <- sum(data$arrival_delay <= 15, na.rm = TRUE)
     on_time_pct <- round(100 * on_time / nrow(data), 1)
@@ -253,16 +321,24 @@ server <- function(input, output, session) {
 
   output$delay_by_day <- renderPlot({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     # Convert day_of_week to factor to preserve order
-    data$day_of_week <- factor(data$day_of_week, levels = c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"))
+    data$day_of_week <- factor(
+      data$day_of_week,
+      levels = c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    )
 
     avg_delays <- data %>%
       group_by(day_of_week) %>%
       summarise(avg_delay = mean(arrival_delay, na.rm = TRUE))
 
-    ggplot(avg_delays, aes(x = day_of_week, y = avg_delay, fill = day_of_week)) +
+    ggplot(
+      avg_delays,
+      aes(x = day_of_week, y = avg_delay, fill = day_of_week)
+    ) +
       geom_col() +
       labs(x = "Day of Week", y = "Average Delay (minutes)") +
       theme_minimal() +
@@ -272,15 +348,23 @@ server <- function(input, output, session) {
 
   output$delay_by_weather <- renderPlot({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     avg_delays <- data %>%
       group_by(weather_conditions) %>%
-      summarise(avg_delay = mean(arrival_delay, na.rm = TRUE),
-                count = n()) %>%
+      summarise(avg_delay = mean(arrival_delay, na.rm = TRUE), count = n()) %>%
       arrange(desc(avg_delay))
 
-    ggplot(avg_delays, aes(x = reorder(weather_conditions, avg_delay), y = avg_delay, fill = count)) +
+    ggplot(
+      avg_delays,
+      aes(
+        x = reorder(weather_conditions, avg_delay),
+        y = avg_delay,
+        fill = count
+      )
+    ) +
       geom_col() +
       coord_flip() +
       labs(x = "Weather Condition", y = "Average Delay (minutes)") +
@@ -291,18 +375,22 @@ server <- function(input, output, session) {
   # Flight Delays tab outputs
   output$delay_distribution <- renderPlot({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     ggplot(data, aes(x = arrival_delay)) +
       geom_histogram(fill = "steelblue", bins = 30) +
       labs(x = "Arrival Delay (minutes)", y = "Number of Flights") +
       theme_minimal() +
-      xlim(-20, 120)  # Focus on the most common delay range
+      xlim(-20, 120) # Focus on the most common delay range
   })
 
   output$delay_time_series <- renderPlot({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     daily_delays <- data %>%
       group_by(flight_date) %>%
@@ -317,13 +405,23 @@ server <- function(input, output, session) {
 
   output$delay_table <- DT::renderDataTable({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     # Get top delayed flights
     top_delays <- data %>%
       filter(arrival_delay > 0) %>%
-      select(flight_date, flight_number, airline_name, origin_city, destination_city,
-             departure_delay, arrival_delay, weather_conditions) %>%
+      select(
+        flight_date,
+        flight_number,
+        airline_name,
+        origin_city,
+        destination_city,
+        departure_delay,
+        arrival_delay,
+        weather_conditions
+      ) %>%
       arrange(desc(arrival_delay)) %>%
       head(50)
 
@@ -333,7 +431,9 @@ server <- function(input, output, session) {
   # Route Analysis tab outputs
   output$route_delays <- renderPlot({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     # Create route name
     data$route <- paste(data$origin_airport, "→", data$destination_airport)
@@ -345,11 +445,14 @@ server <- function(input, output, session) {
         avg_delay = mean(arrival_delay, na.rm = TRUE),
         count = n()
       ) %>%
-      filter(count >= 10) %>%  # Only routes with sufficient data
+      filter(count >= 10) %>% # Only routes with sufficient data
       arrange(desc(avg_delay)) %>%
       head(15)
 
-    ggplot(route_stats, aes(x = reorder(route, avg_delay), y = avg_delay, fill = count)) +
+    ggplot(
+      route_stats,
+      aes(x = reorder(route, avg_delay), y = avg_delay, fill = count)
+    ) +
       geom_col() +
       coord_flip() +
       labs(x = "Route", y = "Average Delay (minutes)", fill = "Flight Count") +
@@ -359,7 +462,9 @@ server <- function(input, output, session) {
 
   output$route_table <- DT::renderDataTable({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     # Create route name
     data$route <- paste(data$origin_city, "to", data$destination_city)
@@ -371,7 +476,10 @@ server <- function(input, output, session) {
         flights = n(),
         avg_delay = round(mean(arrival_delay, na.rm = TRUE), 1),
         max_delay = max(arrival_delay, na.rm = TRUE),
-        on_time_pct = round(100 * sum(arrival_delay <= 15, na.rm = TRUE) / n(), 1)
+        on_time_pct = round(
+          100 * sum(arrival_delay <= 15, na.rm = TRUE) / n(),
+          1
+        )
       ) %>%
       arrange(desc(avg_delay))
 
@@ -381,7 +489,9 @@ server <- function(input, output, session) {
   # Airline Comparison tab outputs
   output$airline_comparison <- renderPlot({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     airline_stats <- data %>%
       group_by(airline_name) %>%
@@ -391,7 +501,10 @@ server <- function(input, output, session) {
       ) %>%
       arrange(avg_delay)
 
-    ggplot(airline_stats, aes(x = reorder(airline_name, avg_delay), y = avg_delay, fill = count)) +
+    ggplot(
+      airline_stats,
+      aes(x = reorder(airline_name, avg_delay), y = avg_delay, fill = count)
+    ) +
       geom_col() +
       coord_flip() +
       labs(x = "Airline", y = "Average Delay (minutes)") +
@@ -401,7 +514,9 @@ server <- function(input, output, session) {
 
   output$airline_ontime <- renderPlot({
     data <- flights_data()
-    if (nrow(data) == 0) return(NULL)
+    if (nrow(data) == 0) {
+      return(NULL)
+    }
 
     airline_ontime <- data %>%
       group_by(airline_name) %>%
@@ -410,7 +525,14 @@ server <- function(input, output, session) {
       ) %>%
       arrange(desc(on_time_pct))
 
-    ggplot(airline_ontime, aes(x = reorder(airline_name, on_time_pct), y = on_time_pct, fill = on_time_pct)) +
+    ggplot(
+      airline_ontime,
+      aes(
+        x = reorder(airline_name, on_time_pct),
+        y = on_time_pct,
+        fill = on_time_pct
+      )
+    ) +
       geom_col() +
       coord_flip() +
       labs(x = "Airline", y = "On-Time Percentage") +
