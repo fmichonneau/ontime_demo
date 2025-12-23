@@ -40,8 +40,10 @@ ui <- dashboardPage(
       dateRangeInput(
         "date_range",
         "Date Range:",
-        start = Sys.Date() - 30,
-        end = Sys.Date()
+        start = as.Date("2024-11-10"),
+        end = as.Date("2025-11-10")
+        min = min(as.Date("2024-11-10")),
+        max = max(as.Date("2025-11-10"))
       ),
       selectInput(
         "airline",
